@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MaSoVa Voice Support</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #080808;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .header h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+    .header h1 .brand { color: #D4AF37; }
+    .header h1 .product { color: #ffffff; }
+    .header p {
+      margin-top: 0.5rem;
+      color: #9ca3af;
+      font-size: 0.95rem;
+    }
+
+    /* ── Status bar ─────────────────────────────────────────── */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1.25rem;
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 999px;
+      margin-bottom: 1.5rem;
+      font-size: 0.85rem;
+      min-width: 180px;
+      justify-content: center;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #6b7280; /* idle = grey */
+      flex-shrink: 0;
+    }
+    .status-dot.idle    { background: #6b7280; }
+    .status-dot.listening { background: #22c55e; animation: pulse-green 1.2s infinite; }
+    .status-dot.processing { background: #f59e0b; }
+    .status-dot.speaking  { background: #3b82f6; animation: pulse-blue 1.2s infinite; }
+    .status-dot.error     { background: #ef4444; }
+
+    @keyframes pulse-green {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,.6); }
+      50%       { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+    }
+    @keyframes pulse-blue {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,.6); }
+      50%       { box-shadow: 0 0 0 6px rgba(59,130,246,0); }
+    }
+
+    /* ── Controls ───────────────────────────────────────────── */
+    .controls {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      padding: 0.65rem 1.5rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: opacity .15s, filter .15s;
+    }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button:not(:disabled):hover { filter: brightness(1.12); }
+
+    #btn-start { background: #22c55e; color: #000; }
+    #btn-end   { background: #ef4444; color: #fff; display: none; }
+    #btn-mute  {
+      background: #1f2937;
+      color: #d1d5db;
+      border: 1px solid #374151;
+    }
+    #btn-mute.muted { background: #374151; color: #fbbf24; }
+
+    /* ── Transcript panel ───────────────────────────────────── */
+    .transcript {
+      width: 100%;
+      max-width: 680px;
+      height: 420px;
+      overflow-y: auto;
+      background: #0f0f0f;
+      border: 1px solid #1f1f1f;
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      scroll-behavior: smooth;
+    }
+    .transcript:empty::before {
+      content: "Your conversation will appear here…";
+      color: #3f3f3f;
+      font-size: 0.85rem;
+      margin: auto;
+      text-align: center;
+    }
+
+    /* Bubbles */
+    .bubble-wrap {
+      display: flex;
+      flex-direction: column;
+      max-width: 78%;
+    }
+    .bubble-wrap.user  { align-self: flex-end; align-items: flex-end; }
+    .bubble-wrap.agent { align-self: flex-start; align-items: flex-start; }
+
+    .bubble-label {
+      font-size: 0.7rem;
+      color: #6b7280;
+      margin-bottom: 3px;
+      padding: 0 4px;
+    }
+    .bubble {
+      padding: 0.55rem 0.85rem;
+      border-radius: 12px;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .bubble-wrap.user  .bubble { background: #1e3a5f; color: #e2e8f0; }
+    .bubble-wrap.agent .bubble {
+      background: #1a1a1a;
+      color: #d1d5db;
+      border: 1px solid #2d2d2d;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1><span class="brand">MaSoVa</span> <span class="product">Voice Support</span></h1>
+    <p>Speak to our AI support agent &mdash; powered by Voicebox</p>
+  </div>
+
+  <div class="status-bar" id="status-bar">
+    <span class="status-dot idle" id="status-dot"></span>
+    <span id="status-text">Idle</span>
+  </div>
+
+  <div class="controls">
+    <button id="btn-start">Start Call</button>
+    <button id="btn-end">End Call</button>
+    <button id="btn-mute" disabled>Mute</button>
+  </div>
+
+  <div class="transcript" id="transcript"></div>
+
+  <script>
+    'use strict';
+
+    /* ── Constants ─────────────────────────────────────────── */
+    const WEBHOOK_URL   = 'http://localhost:5678/webhook/masova-voice';
+    const SILENCE_THRESHOLD = 0.01;   // normalised RMS 0-1
+    const SILENCE_DURATION  = 1500;   // ms of silence before sending
+
+    /* ── Session ID (generated once, lives for page lifetime) ── */
+    const SESSION_ID = crypto.randomUUID();
+
+    /* ── State ─────────────────────────────────────────────── */
+    let mediaStream      = null;
+    let audioContext     = null;
+    let analyser         = null;
+    let mediaRecorder    = null;
+    let recordedChunks   = [];
+    let silenceTimer     = null;
+    let inCall           = false;
+    let muted            = false;
+    let processing       = false;   // true while HTTP round-trip is in flight
+    let animFrameId      = null;
+
+    /* ── DOM refs ──────────────────────────────────────────── */
+    const btnStart     = document.getElementById('btn-start');
+    const btnEnd       = document.getElementById('btn-end');
+    const btnMute      = document.getElementById('btn-mute');
+    const statusDot    = document.getElementById('status-dot');
+    const statusText   = document.getElementById('status-text');
+    const transcriptEl = document.getElementById('transcript');
+
+    /* ── Helpers ───────────────────────────────────────────── */
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function setStatus(state, label) {
+      statusDot.className = 'status-dot ' + state;
+      statusText.textContent = label;
+    }
+
+    function addBubble(role, text) {
+      const wrap  = document.createElement('div');
+      wrap.className = 'bubble-wrap ' + role;
+
+      const label = document.createElement('div');
+      label.className = 'bubble-label';
+      label.textContent = role === 'user' ? 'You' : 'MaSoVa Agent';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = text;   // textContent auto-escapes — belt AND suspenders
+      // belt: we also escape manually in callers where we got the text from headers
+
+      wrap.appendChild(label);
+      wrap.appendChild(bubble);
+      transcriptEl.appendChild(wrap);
+      transcriptEl.scrollTop = transcriptEl.scrollHeight;
+    }
+
+    /* ── RMS silence detection loop ───────────────────────── */
+    function startSilenceDetection() {
+      const bufferLen = analyser.fftSize;
+      const dataArr   = new Float32Array(bufferLen);
+
+      function tick() {
+        if (!inCall) return;
+        animFrameId = requestAnimationFrame(tick);
+
+        if (muted || processing) return;
+
+        analyser.getFloatTimeDomainData(dataArr);
+        let sumSq = 0;
+        for (let i = 0; i < bufferLen; i++) sumSq += dataArr[i] * dataArr[i];
+        const rms = Math.sqrt(sumSq / bufferLen);
+
+        if (rms < SILENCE_THRESHOLD) {
+          // silence detected
+          if (!silenceTimer) {
+            silenceTimer = setTimeout(() => {
+              silenceTimer = null;
+              stopAndSend();
+            }, SILENCE_DURATION);
+          }
+        } else {
+          // speech detected — cancel silence timer
+          if (silenceTimer) {
+            clearTimeout(silenceTimer);
+            silenceTimer = null;
+          }
+        }
+      }
+
+      animFrameId = requestAnimationFrame(tick);
+    }
+
+    /* ── MediaRecorder helpers ─────────────────────────────── */
+    function startRecording() {
+      if (!inCall || muted || processing) return;
+
+      recordedChunks = [];
+
+      // Prefer audio/webm; fall back gracefully
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : '';
+
+      const options = mimeType ? { mimeType } : {};
+      mediaRecorder = new MediaRecorder(mediaStream, options);
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+      };
+
+      mediaRecorder.start(200);   // collect in 200 ms chunks
+      setStatus('listening', 'Listening…');
+    }
+
+    function stopAndSend() {
+      if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+
+      mediaRecorder.onstop = async () => {
+        if (!inCall) return;
+        if (recordedChunks.length === 0) {
+          startRecording();
+          return;
+        }
+        const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        recordedChunks = [];
+        await sendAudio(blob);
+      };
+
+      mediaRecorder.stop();
+    }
+
+    /* ── HTTP round-trip ───────────────────────────────────── */
+    async function sendAudio(blob) {
+      if (!inCall) return;
+
+      processing = true;
+      setStatus('processing', 'Processing…');
+
+      const form = new FormData();
+      form.append('data', blob, 'audio.webm');
+      form.append('session_id', SESSION_ID);
+
+      let response;
+      try {
+        response = await fetch(WEBHOOK_URL, { method: 'POST', body: form });
+      } catch (err) {
+        handleError('Network error: ' + err.message);
+        return;
+      }
+
+      if (!response.ok) {
+        handleError('Server error ' + response.status);
+        return;
+      }
+
+      // Read transcript headers (URL-encoded)
+      const rawUser  = response.headers.get('X-Transcript') || '';
+      const rawAgent = response.headers.get('X-Reply')      || '';
+      const userText  = rawUser  ? decodeURIComponent(rawUser)  : null;
+      const agentText = rawAgent ? decodeURIComponent(rawAgent) : null;
+
+      if (userText)  addBubble('user',  escapeHtml(userText));
+      if (agentText) addBubble('agent', escapeHtml(agentText));
+
+      // Read binary audio body
+      let audioBlob;
+      try {
+        audioBlob = await response.blob();
+      } catch (err) {
+        handleError('Failed to read audio: ' + err.message);
+        return;
+      }
+
+      if (!inCall) return;
+
+      if (audioBlob.size > 0) {
+        setStatus('speaking', 'Speaking…');
+        const audioURL = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioURL);
+
+        audio.onended = () => {
+          URL.revokeObjectURL(audioURL);
+          processing = false;
+          if (inCall && !muted) {
+            startRecording();
+          } else {
+            setStatus('idle', 'Idle');
+          }
+        };
+
+        audio.onerror = () => {
+          URL.revokeObjectURL(audioURL);
+          handleError('Audio playback error');
+        };
+
+        try {
+          await audio.play();
+        } catch (err) {
+          URL.revokeObjectURL(audioURL);
+          handleError('Could not play audio: ' + err.message);
+        }
+      } else {
+        // No audio returned — resume listening immediately
+        processing = false;
+        if (inCall && !muted) startRecording();
+        else setStatus('idle', 'Idle');
+      }
+    }
+
+    function handleError(msg) {
+      processing = false;
+      setStatus('error', 'Error');
+      console.error('[MaSoVa]', msg);
+
+      setTimeout(() => {
+        if (!inCall) return;
+        if (!muted) {
+          startRecording();
+        } else {
+          setStatus('idle', 'Idle');
+        }
+      }, 3000);
+    }
+
+    /* ── Start Call ────────────────────────────────────────── */
+    btnStart.addEventListener('click', async () => {
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        setStatus('error', 'Mic denied');
+        console.error('[MaSoVa] getUserMedia failed:', err);
+        return;
+      }
+
+      // Build Web Audio graph
+      audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(mediaStream);
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+
+      inCall     = true;
+      muted      = false;
+      processing = false;
+
+      btnStart.style.display = 'none';
+      btnEnd.style.display   = '';
+      btnMute.disabled       = false;
+      btnMute.classList.remove('muted');
+      btnMute.textContent    = 'Mute';
+
+      startSilenceDetection();
+      startRecording();
+    });
+
+    /* ── End Call ──────────────────────────────────────────── */
+    btnEnd.addEventListener('click', endCall);
+
+    function endCall() {
+      inCall     = false;
+      muted      = false;
+      processing = false;
+
+      // Cancel silence timer
+      if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+
+      // Stop animation frame loop
+      if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+
+      // Stop MediaRecorder
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        try { mediaRecorder.stop(); } catch (_) {}
+      }
+      mediaRecorder  = null;
+      recordedChunks = [];
+
+      // Stop all audio tracks
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(t => t.stop());
+        mediaStream = null;
+      }
+
+      // Close AudioContext
+      if (audioContext) {
+        audioContext.close().catch(() => {});
+        audioContext = null;
+        analyser     = null;
+      }
+
+      setStatus('idle', 'Idle');
+      btnStart.style.display = '';
+      btnEnd.style.display   = 'none';
+      btnMute.disabled       = true;
+      btnMute.classList.remove('muted');
+      btnMute.textContent    = 'Mute';
+    }
+
+    /* ── Mute toggle ───────────────────────────────────────── */
+    btnMute.addEventListener('click', () => {
+      if (!inCall) return;
+      muted = !muted;
+
+      if (muted) {
+        btnMute.classList.add('muted');
+        btnMute.textContent = 'Unmute';
+
+        // Cancel pending silence timer and stop recorder
+        if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+          mediaRecorder.onstop = null;   // discard this recording
+          try { mediaRecorder.stop(); } catch (_) {}
+        }
+        if (!processing) setStatus('idle', 'Muted');
+      } else {
+        btnMute.classList.remove('muted');
+        btnMute.textContent = 'Mute';
+
+        if (!processing) startRecording();
+      }
+    });
+  </script>
+</body>
+</html>
