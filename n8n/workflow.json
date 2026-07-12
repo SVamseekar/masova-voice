@@ -70,10 +70,19 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:8000/chat",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.GROQ_API_KEY}}"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  message: $('Voicebox STT').item.json.text,\n  context: $json.result.map(r => r.payload.text).join('\\n\\n'),\n  session_id: $('Voice Webhook').item.json.body.session_id || 'default-session'\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'llama-3.1-8b-instant',\n  max_tokens: 200,\n  messages: [\n    {\n      role: 'system',\n      content: 'You are a helpful voice support agent for MaSoVa, a restaurant management platform. Answer concisely in under 100 words — your response will be spoken aloud. Use the context below to answer accurately.\\n\\nContext:\\n' + $json.result.map(r => r.payload.text).join('\\n\\n')\n    },\n    {\n      role: 'user',\n      content: $(\\'Voicebox STT\\').item.json.text\n    }\n  ]\n}) }}",
         "options": {}
       },
       "id": "agent-node",
@@ -88,7 +97,7 @@
         "url": "http://host.docker.internal:17493/speak",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ text: $json.reply || $json.response || $json.message }) }}",
+        "jsonBody": "={{ JSON.stringify({ text: $json.choices[0].message.content }) }}",
         "options": {
           "response": {
             "response": {
@@ -120,7 +129,7 @@
               },
               {
                 "name": "X-Reply",
-                "value": "={{ encodeURIComponent($('MaSoVa Agent').item.json.reply || $('MaSoVa Agent').item.json.response || '') }}"
+                "value": "={{ encodeURIComponent($('MaSoVa Agent').item.json.choices[0].message.content || '') }}"
               },
               {
                 "name": "Access-Control-Allow-Origin",
