@@ -82,7 +82,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  model: 'llama-3.1-8b-instant',\n  max_tokens: 200,\n  messages: [\n    {\n      role: 'system',\n      content: 'You are a helpful voice support agent for MaSoVa, a restaurant management platform. Answer concisely in under 100 words — your response will be spoken aloud. Use the context below to answer accurately.\\n\\nContext:\\n' + $json.result.map(r => r.payload.text).join('\\n\\n')\n    },\n    {\n      role: 'user',\n      content: $(\\'Voicebox STT\\').item.json.text\n    }\n  ]\n}) }}",
+        "jsonBody": "={{ JSON.stringify({ model: 'llama-3.1-8b-instant', max_tokens: 200, messages: [{ role: 'system', content: 'You are a helpful voice support agent for MaSoVa, a restaurant management platform. Answer concisely in under 100 words — your response will be spoken aloud. Use the context below to answer accurately.\\n\\nContext:\\n' + $json.result.map(r => r.payload.text).join('\\n\\n') }, { role: 'user', content: $('Voicebox STT').item.json.text }] }) }}",
         "options": {}
       },
       "id": "agent-node",
