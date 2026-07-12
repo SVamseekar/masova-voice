@@ -1,0 +1,5 @@
+qdrant-client==1.9.1
+requests==2.31.0
+groq==0.9.0
+tiktoken==0.7.0
+python-dotenv==1.0.1

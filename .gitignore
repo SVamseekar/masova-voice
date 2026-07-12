@@ -1,0 +1,6 @@
+n8n/data/
+qdrant/storage/
+__pycache__/
+*.pyc
+.env
+venv/
