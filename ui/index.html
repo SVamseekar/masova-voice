@@ -196,6 +196,7 @@
     let muted            = false;
     let processing       = false;   // true while HTTP round-trip is in flight
     let animFrameId      = null;
+    let errorRetryTimer  = null;
 
     /* ── DOM refs ──────────────────────────────────────────── */
     const btnStart     = document.getElementById('btn-start');
@@ -211,6 +212,11 @@
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
+    }
+
+    function safeDecode(s) {
+      try { return s ? decodeURIComponent(s) : ''; }
+      catch { return s || ''; }
     }
 
     function setStatus(state, label) {
@@ -311,6 +317,7 @@
         await sendAudio(blob);
       };
 
+      processing = true;
       mediaRecorder.stop();
     }
 
@@ -339,13 +346,11 @@
       }
 
       // Read transcript headers (URL-encoded)
-      const rawUser  = response.headers.get('X-Transcript') || '';
-      const rawAgent = response.headers.get('X-Reply')      || '';
-      const userText  = rawUser  ? decodeURIComponent(rawUser)  : null;
-      const agentText = rawAgent ? decodeURIComponent(rawAgent) : null;
+      const userText  = safeDecode(response.headers.get('X-Transcript')) || null;
+      const agentText = safeDecode(response.headers.get('X-Reply'))      || null;
 
-      if (userText)  addBubble('user',  escapeHtml(userText));
-      if (agentText) addBubble('agent', escapeHtml(agentText));
+      if (userText)  addBubble('user',  userText);
+      if (agentText) addBubble('agent', agentText);
 
       // Read binary audio body
       let audioBlob;
@@ -357,6 +362,11 @@
       }
 
       if (!inCall) return;
+
+      if (audioBlob.size > 0 && !audioBlob.type.startsWith('audio/')) {
+        handleError('Unexpected response type: ' + audioBlob.type);
+        return;
+      }
 
       if (audioBlob.size > 0) {
         setStatus('speaking', 'Speaking…');
@@ -397,7 +407,8 @@
       setStatus('error', 'Error');
       console.error('[MaSoVa]', msg);
 
-      setTimeout(() => {
+      errorRetryTimer = setTimeout(() => {
+        errorRetryTimer = null;
         if (!inCall) return;
         if (!muted) {
           startRecording();
@@ -409,6 +420,11 @@
 
     /* ── Start Call ────────────────────────────────────────── */
     btnStart.addEventListener('click', async () => {
+      if (!window.MediaRecorder) {
+        setStatus('error', 'MediaRecorder not supported — use Chrome or Edge');
+        return;
+      }
+
       try {
         mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       } catch (err) {
@@ -419,6 +435,7 @@
 
       // Build Web Audio graph
       audioContext = new AudioContext();
+      if (audioContext.state === 'suspended') await audioContext.resume();
       const source = audioContext.createMediaStreamSource(mediaStream);
       analyser = audioContext.createAnalyser();
       analyser.fftSize = 2048;
@@ -446,8 +463,9 @@
       muted      = false;
       processing = false;
 
-      // Cancel silence timer
-      if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+      // Cancel silence timer and error retry timer
+      if (silenceTimer)    { clearTimeout(silenceTimer);    silenceTimer    = null; }
+      if (errorRetryTimer) { clearTimeout(errorRetryTimer); errorRetryTimer = null; }
 
       // Stop animation frame loop
       if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
