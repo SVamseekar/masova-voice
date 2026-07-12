@@ -1,43 +1,45 @@
 """
 Ingests docs/kb/*.md into Qdrant collection 'masova_kb'.
 Chunks at ~1800 chars with 200-char overlap.
-Embeds via Nomic nomic-embed-text-v1.5 (free tier, 768 dims).
+Embeds locally via nomic-ai/nomic-embed-text-v1.5 (sentence-transformers, 768 dims).
+Model downloads ~400MB on first run, then cached.
 Run: python qdrant/ingest.py
 """
 
-import os
 import sys
 import uuid
 from pathlib import Path
-from dotenv import load_dotenv
-import nomic
-from nomic import embed as nomic_embed
+from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 
-load_dotenv()
-
-NOMIC_API_KEY = os.environ.get("NOMIC_API_KEY")
-if not NOMIC_API_KEY:
-    sys.exit("ERROR: NOMIC_API_KEY not set. Get a free key at https://atlas.nomic.ai and add it to .env")
-
-nomic.login(NOMIC_API_KEY)
-
 QDRANT_URL = "http://localhost:6333"
 COLLECTION = "masova_kb"
-EMBED_MODEL = "nomic-embed-text-v1.5"
+EMBED_MODEL = "nomic-ai/nomic-embed-text-v1.5"
 VECTOR_SIZE = 768
 CHUNK_CHARS = 1800
 OVERLAP_CHARS = 200
 
 assert CHUNK_CHARS > OVERLAP_CHARS
 
+# nomic-embed-text requires task-type prefixes for best results
+INGEST_PREFIX = "search_document: "
+QUERY_PREFIX = "search_query: "
+
+_model = None
 qdrant = QdrantClient(url=QDRANT_URL)
 
 
+def get_model() -> SentenceTransformer:
+    global _model
+    if _model is None:
+        print(f"Loading {EMBED_MODEL} (downloads ~400MB on first run)...")
+        _model = SentenceTransformer(EMBED_MODEL, trust_remote_code=True)
+    return _model
+
+
 def embed(text: str) -> list[float]:
-    output = nomic_embed.text(texts=[text], model=EMBED_MODEL, task_type="search_document")
-    return output["embeddings"][0]
+    return get_model().encode(INGEST_PREFIX + text).tolist()
 
 
 def chunk_text(text: str) -> list[str]:
