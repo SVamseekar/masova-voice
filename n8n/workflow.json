@@ -1,0 +1,167 @@
+{
+  "name": "MaSoVa Voice Support",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "masova-voice",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Voice Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:17493/transcribe",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "transcribe-node",
+      "name": "Voicebox STT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:17493/embed",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.text }) }}",
+        "options": {}
+      },
+      "id": "embed-node",
+      "name": "Embed Query",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:6333/collections/masova_kb/points/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ vector: $json.embedding, limit: 3, with_payload: true }) }}",
+        "options": {}
+      },
+      "id": "qdrant-node",
+      "name": "RAG Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/chat",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  message: $('Voicebox STT').item.json.text,\n  context: $json.result.map(r => r.payload.text).join('\\n\\n'),\n  session_id: $('Voice Webhook').item.json.body.session_id || 'default-session'\n}) }}",
+        "options": {}
+      },
+      "id": "agent-node",
+      "name": "MaSoVa Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:17493/speak",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.reply || $json.response || $json.message }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "tts-node",
+      "name": "Voicebox TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "responseBody": "={{ $binary.data }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "audio/mpeg"
+              },
+              {
+                "name": "X-Transcript",
+                "value": "={{ encodeURIComponent($('Voicebox STT').item.json.text || '') }}"
+              },
+              {
+                "name": "X-Reply",
+                "value": "={{ encodeURIComponent($('MaSoVa Agent').item.json.reply || $('MaSoVa Agent').item.json.response || '') }}"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Expose-Headers",
+                "value": "X-Transcript, X-Reply"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-node",
+      "name": "Respond with Audio",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1560, 300]
+    }
+  ],
+  "connections": {
+    "Voice Webhook": {
+      "main": [[{"node": "Voicebox STT", "type": "main", "index": 0}]]
+    },
+    "Voicebox STT": {
+      "main": [[{"node": "Embed Query", "type": "main", "index": 0}]]
+    },
+    "Embed Query": {
+      "main": [[{"node": "RAG Search", "type": "main", "index": 0}]]
+    },
+    "RAG Search": {
+      "main": [[{"node": "MaSoVa Agent", "type": "main", "index": 0}]]
+    },
+    "MaSoVa Agent": {
+      "main": [[{"node": "Voicebox TTS", "type": "main", "index": 0}]]
+    },
+    "Voicebox TTS": {
+      "main": [[{"node": "Respond with Audio", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
