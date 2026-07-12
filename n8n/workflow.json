@@ -40,13 +40,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.groq.com/openai/v1/embeddings",
+        "url": "https://api-atlas.nomic.ai/v1/embedding/text",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{$env.GROQ_API_KEY}}"
+              "value": "=Bearer {{$env.NOMIC_API_KEY}}"
             },
             {
               "name": "Content-Type",
@@ -56,7 +56,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'nomic-embed-text-v1.5', input: $json.text }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: 'nomic-embed-text-v1.5', texts: [$('Voicebox STT').item.json.text], task_type: 'search_query' }) }}",
         "options": {}
       },
       "id": "embed-node",
@@ -71,7 +71,7 @@
         "url": "http://host.docker.internal:6333/collections/masova_kb/points/search",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ vector: $json.data[0].embedding, limit: 3, with_payload: true }) }}",
+        "jsonBody": "={{ JSON.stringify({ vector: $json.embeddings[0], limit: 3, with_payload: true }) }}",
         "options": {}
       },
       "id": "qdrant-node",

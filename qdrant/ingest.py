@@ -1,7 +1,7 @@
 """
 Ingests docs/kb/*.md into Qdrant collection 'masova_kb'.
 Chunks at ~1800 chars with 200-char overlap.
-Embeds via Groq nomic-embed-text-v1.5 (free tier).
+Embeds via Nomic nomic-embed-text-v1.5 (free tier, 768 dims).
 Run: python qdrant/ingest.py
 """
 
@@ -10,15 +10,18 @@ import sys
 import uuid
 from pathlib import Path
 from dotenv import load_dotenv
-from groq import Groq
+import nomic
+from nomic import embed as nomic_embed
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 
 load_dotenv()
 
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-if not GROQ_API_KEY:
-    sys.exit("ERROR: GROQ_API_KEY not set. Add it to .env or set the environment variable.")
+NOMIC_API_KEY = os.environ.get("NOMIC_API_KEY")
+if not NOMIC_API_KEY:
+    sys.exit("ERROR: NOMIC_API_KEY not set. Get a free key at https://atlas.nomic.ai and add it to .env")
+
+nomic.login(NOMIC_API_KEY)
 
 QDRANT_URL = "http://localhost:6333"
 COLLECTION = "masova_kb"
@@ -29,13 +32,12 @@ OVERLAP_CHARS = 200
 
 assert CHUNK_CHARS > OVERLAP_CHARS
 
-groq_client = Groq(api_key=GROQ_API_KEY)
 qdrant = QdrantClient(url=QDRANT_URL)
 
 
 def embed(text: str) -> list[float]:
-    response = groq_client.embeddings.create(model=EMBED_MODEL, input=text)
-    return response.data[0].embedding
+    output = nomic_embed.text(texts=[text], model=EMBED_MODEL, task_type="search_document")
+    return output["embeddings"][0]
 
 
 def chunk_text(text: str) -> list[str]:
