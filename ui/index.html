@@ -329,7 +329,7 @@
       setStatus('processing', 'Processing…');
 
       const form = new FormData();
-      form.append('data', blob, 'audio.webm');
+      form.append('file', blob, 'audio.webm');
       form.append('session_id', SESSION_ID);
 
       let response;

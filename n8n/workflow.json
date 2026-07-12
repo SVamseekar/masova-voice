@@ -25,7 +25,7 @@
             {
               "parameterType": "formBinaryData",
               "name": "file",
-              "inputDataFieldName": "data"
+              "inputDataFieldName": "file"
             }
           ]
         },
@@ -94,10 +94,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:17493/speak",
+        "url": "http://host.docker.internal:17493/generate/stream",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ text: $json.choices[0].message.content }) }}",
+        "jsonBody": "={{ JSON.stringify({ profile_id: 'f3208694-ba31-4ace-bbd7-1a91b81f5e2f', text: $json.choices[0].message.content, language: 'en' }) }}",
         "options": {
           "response": {
             "response": {
