@@ -97,7 +97,7 @@
         "url": "http://host.docker.internal:17493/generate/stream",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ profile_id: 'f3208694-ba31-4ace-bbd7-1a91b81f5e2f', text: $json.choices[0].message.content, language: 'en' }) }}",
+        "jsonBody": "={{ JSON.stringify({ profile_id: 'f3208694-ba31-4ace-bbd7-1a91b81f5e2f', text: $json.choices[0].message.content, language: 'en', engine: 'kokoro' }) }}",
         "options": {
           "response": {
             "response": {

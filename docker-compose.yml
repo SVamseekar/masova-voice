@@ -12,6 +12,7 @@ services:
       - WEBHOOK_URL=http://localhost:5678
       - GENERIC_TIMEZONE=Europe/Berlin
       - GROQ_API_KEY=${GROQ_API_KEY}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     volumes:
       - ./n8n/data:/home/node/.n8n
     restart: unless-stopped
