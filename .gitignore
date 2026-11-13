@@ -6,3 +6,6 @@ __pycache__/
 venv/
 .DS_Store
 test_tts.wav
+_local/
+_to_delete/
+docs/superpowers/
